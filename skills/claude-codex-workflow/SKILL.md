@@ -39,6 +39,19 @@ command -v codex || echo "codex not found — install: npm i -g @openai/codex (o
 
 If Codex is not installed, tell the user and offer to do the implementation yourself instead of blocking.
 
+**Codex needs to be authenticated before `codex exec` will run.** Check before delegating:
+
+```bash
+test -f "${CODEX_HOME:-$HOME/.codex}/auth.json" && echo "codex: authed" || echo "codex: NOT authed"
+```
+
+If it's not authed, **stop and ask the user to authenticate** — you can't do this for them:
+
+- **OAuth (ChatGPT login):** the user runs `codex login`, which opens a browser for the OAuth flow. This is interactive and can't be done headlessly, so hand it off and wait for them to confirm it's done.
+- **API key (non-interactive alternative):** set `OPENAI_API_KEY` in the environment, or run `codex login --api-key "$OPENAI_API_KEY"`.
+
+Don't try to drive the OAuth flow yourself or paste tokens — just surface the one-time `codex login` step and resume Phase 2 once the user confirms.
+
 Run it headless from the project directory, feeding it the brief:
 
 ```bash
@@ -83,4 +96,4 @@ rm -f .codex-brief.md .codex-result.txt
 
 - Trivial one-file, few-line changes — just do them.
 - Tasks that are pure judgment with no legwork (a code review, a design discussion) — there's nothing to delegate.
-- Codex unavailable and the user wants it done now — do the legwork yourself and say so.
+- Codex unavailable (not installed, or not authenticated and the user can't `codex login` right now) and they want it done now — do the legwork yourself and say so.

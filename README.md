@@ -6,6 +6,8 @@
 
 A single `CLAUDE.md` file to improve Claude Code behavior, derived from [Andrej Karpathy's observations](https://x.com/karpathy/status/2015883857489522876) on LLM coding pitfalls.
 
+This plugin also includes a focused API design skill for keeping HTTP API contracts simple, explicit, testable, and backward-compatible.
+
 English | [简体中文](./README.zh.md)
 
 ## The Problems
@@ -110,7 +112,7 @@ Then install the plugin:
 /plugin install andrej-karpathy-skills@karpathy-skills
 ```
 
-This installs the guidelines as a Claude Code plugin, making the skill available across all your projects.
+This installs the guidelines as a Claude Code plugin, making the Karpathy guidelines and API guidelines skills available across all your projects.
 
 **Option B: CLAUDE.md (per-project)**
 

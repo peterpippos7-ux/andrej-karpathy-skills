@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>What's for dinner?</title>
+    <style>
+      :root {
+        --bg: #f7f4ee;
+        --card: #ffffff;
+        --ink: #1f2937;
+        --muted: #6b7280;
+        --accent: #c0653a;
+        --accent-soft: #f3e2d6;
+        --border: #e5e0d6;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--ink);
+        line-height: 1.5;
+      }
+      .wrap {
+        max-width: 780px;
+        margin: 0 auto;
+        padding: 32px 20px 80px;
+      }
+      header { margin-bottom: 28px; }
+      h1 { font-size: 32px; margin: 0 0 6px; }
+      .tagline { color: var(--muted); margin: 0; }
+
+      .uploader {
+        background: var(--card);
+        border: 2px dashed var(--border);
+        border-radius: 12px;
+        padding: 28px;
+        text-align: center;
+        transition: border-color 0.15s, background 0.15s;
+        cursor: pointer;
+      }
+      .uploader.drag { border-color: var(--accent); background: var(--accent-soft); }
+      .uploader input[type=file] { display: none; }
+      .uploader p { margin: 8px 0 0; color: var(--muted); }
+      .uploader strong { color: var(--ink); }
+
+      .preview {
+        margin-top: 20px;
+        display: none;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 16px;
+      }
+      .preview.visible { display: block; }
+      .preview img {
+        max-width: 100%;
+        max-height: 320px;
+        border-radius: 8px;
+        display: block;
+        margin: 0 auto;
+      }
+      .actions {
+        display: flex;
+        gap: 12px;
+        justify-content: center;
+        margin-top: 16px;
+      }
+      button {
+        font: inherit;
+        padding: 10px 20px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--card);
+        cursor: pointer;
+        transition: background 0.15s;
+      }
+      button:hover { background: #f3efe7; }
+      button.primary {
+        background: var(--accent);
+        color: white;
+        border-color: var(--accent);
+      }
+      button.primary:hover { background: #a45530; }
+      button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+      .status {
+        margin-top: 20px;
+        color: var(--muted);
+        text-align: center;
+      }
+      .error {
+        margin-top: 20px;
+        padding: 12px 16px;
+        border-radius: 8px;
+        background: #fde2e2;
+        color: #921717;
+      }
+
+      .results { margin-top: 28px; }
+      .results h2 { font-size: 22px; margin: 0 0 10px; }
+      .ingredients {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 24px;
+      }
+      .chip {
+        background: var(--accent-soft);
+        color: var(--accent);
+        padding: 4px 12px;
+        border-radius: 999px;
+        font-size: 14px;
+      }
+      .meal {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 18px 20px;
+        margin-bottom: 14px;
+      }
+      .meal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        margin-bottom: 8px;
+        gap: 12px;
+      }
+      .meal h3 { margin: 0; font-size: 18px; }
+      .time { color: var(--muted); font-size: 14px; white-space: nowrap; }
+      .meal p { margin: 0 0 12px; }
+      .meal-meta { font-size: 14px; color: var(--muted); }
+      .meal-meta strong { color: var(--ink); font-weight: 600; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <h1>What's for dinner?</h1>
+        <p class="tagline">
+          Upload a photo of food you have on hand. Claude will identify what's there and suggest meals you can make.
+        </p>
+      </header>
+
+      <label class="uploader" id="uploader">
+        <input type="file" id="file" accept="image/jpeg,image/png,image/webp,image/gif" />
+        <div>
+          <strong>Click to choose a photo</strong> or drag one here
+        </div>
+        <p>JPEG, PNG, WebP, or GIF — up to 10 MB</p>
+      </label>
+
+      <div class="preview" id="preview">
+        <img id="preview-img" alt="Selected food photo" />
+        <div class="actions">
+          <button id="analyze" class="primary">Suggest meals</button>
+          <button id="clear">Choose a different photo</button>
+        </div>
+      </div>
+
+      <div id="status" class="status" hidden></div>
+      <div id="error" class="error" hidden></div>
+      <div id="results" class="results"></div>
+    </div>
+
+    <script>
+      const fileInput = document.getElementById("file");
+      const uploader = document.getElementById("uploader");
+      const preview = document.getElementById("preview");
+      const previewImg = document.getElementById("preview-img");
+      const analyzeBtn = document.getElementById("analyze");
+      const clearBtn = document.getElementById("clear");
+      const statusEl = document.getElementById("status");
+      const errorEl = document.getElementById("error");
+      const resultsEl = document.getElementById("results");
+
+      let currentFile = null;
+
+      function showError(msg) {
+        errorEl.textContent = msg;
+        errorEl.hidden = false;
+      }
+      function clearMessages() {
+        errorEl.hidden = true;
+        statusEl.hidden = true;
+      }
+      function setStatus(msg) {
+        statusEl.textContent = msg;
+        statusEl.hidden = false;
+      }
+
+      function selectFile(file) {
+        clearMessages();
+        resultsEl.innerHTML = "";
+        if (!file) return;
+        if (!file.type.startsWith("image/")) {
+          showError("Please choose an image file.");
+          return;
+        }
+        currentFile = file;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          previewImg.src = e.target.result;
+          preview.classList.add("visible");
+        };
+        reader.readAsDataURL(file);
+      }
+
+      fileInput.addEventListener("change", (e) => selectFile(e.target.files[0]));
+
+      uploader.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        uploader.classList.add("drag");
+      });
+      uploader.addEventListener("dragleave", () => uploader.classList.remove("drag"));
+      uploader.addEventListener("drop", (e) => {
+        e.preventDefault();
+        uploader.classList.remove("drag");
+        selectFile(e.dataTransfer.files[0]);
+      });
+
+      clearBtn.addEventListener("click", () => {
+        currentFile = null;
+        fileInput.value = "";
+        preview.classList.remove("visible");
+        resultsEl.innerHTML = "";
+        clearMessages();
+      });
+
+      analyzeBtn.addEventListener("click", async () => {
+        if (!currentFile) return;
+        clearMessages();
+        resultsEl.innerHTML = "";
+        analyzeBtn.disabled = true;
+        setStatus("Looking at your photo...");
+
+        const formData = new FormData();
+        formData.append("photo", currentFile);
+
+        try {
+          const res = await fetch("/analyze", { method: "POST", body: formData });
+          const data = await res.json();
+          if (!res.ok) {
+            showError(data.error || "Something went wrong.");
+            return;
+          }
+          renderResults(data);
+        } catch (err) {
+          showError("Network error: " + err.message);
+        } finally {
+          analyzeBtn.disabled = false;
+          statusEl.hidden = true;
+        }
+      });
+
+      function renderResults(data) {
+        const parts = [];
+        if (data.ingredients && data.ingredients.length) {
+          parts.push('<h2>I can see</h2>');
+          parts.push('<div class="ingredients">');
+          for (const item of data.ingredients) {
+            parts.push(`<span class="chip">${escapeHtml(item)}</span>`);
+          }
+          parts.push("</div>");
+        }
+        if (data.meals && data.meals.length) {
+          parts.push("<h2>Meal ideas</h2>");
+          for (const meal of data.meals) {
+            parts.push('<div class="meal">');
+            parts.push('<div class="meal-header">');
+            parts.push(`<h3>${escapeHtml(meal.name)}</h3>`);
+            if (meal.time_minutes) {
+              parts.push(`<span class="time">~${meal.time_minutes} min</span>`);
+            }
+            parts.push("</div>");
+            parts.push(`<p>${escapeHtml(meal.description)}</p>`);
+            if (meal.additional_ingredients && meal.additional_ingredients.length) {
+              parts.push(
+                `<div class="meal-meta"><strong>You'll also need:</strong> ${meal.additional_ingredients
+                  .map(escapeHtml)
+                  .join(", ")}</div>`,
+              );
+            }
+            parts.push("</div>");
+          }
+        }
+        if (parts.length === 0) {
+          parts.push("<p>No suggestions returned.</p>");
+        }
+        resultsEl.innerHTML = parts.join("");
+      }
+
+      function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, (c) => ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#39;",
+        })[c]);
+      }
+    </script>
+  </body>
+</html>
